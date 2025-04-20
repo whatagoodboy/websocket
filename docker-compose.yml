@@ -9,13 +9,20 @@ services:
       - DATABASE_NAME=teslamate
       - DATABASE_HOST=database
       - MQTT_HOST=mosquitto
-      - TESLA_WSS_HOST=ws://fleetwebsocket:8081
+      - TESLA_WSS_HOST=ws://websocket:8081
       - TESLA_WSS_TLS_ACCEPT_INVALID_CERTS=true
       - TESLA_WSS_USE_VIN=true
       - TESLA_API_HOST=https://fleet-api.prd.cn.vn.cloud.tesla.cn
       - TESLA_AUTH_HOST=https://auth.tesla.cn
       - TESLA_AUTH_PATH=/oauth2/v3
       - TESLA_AUTH_CLIENT_ID=${TESLA_AUTH_CLIENT_ID:-your_client_id}
+      - POLLING_ASLEEP_INTERVAL=30  #default:30
+      - POLLING_CHARGING_INTERVAL=5  #default:5
+      - POLLING_DRIVING_INTERVAL=2.5 #default:2.5
+      - POLLING_ONLINE_INTERVAL=5 #default:60
+      - POLLING_DEFAULT_INTERVAL=5 #default:15
+      - POLLING_MINIMUM_INTERVAL=0 #default:0
+      - TZ=Asia/Shanghai
     ports:
       - ${TESLAMATE_PORT:-4000}:4000
     volumes:
@@ -41,6 +48,7 @@ services:
       - DATABASE_PASS=${DATABASE_PASS:-password}
       - DATABASE_NAME=teslamate
       - DATABASE_HOST=database
+      - TZ=Asia/Shanghai
     ports:
       - ${GRAFANA_PORT:-3000}:3000
     volumes:
@@ -56,11 +64,21 @@ services:
       - mosquitto-conf:/mosquitto/config
       - mosquitto-data:/mosquitto/data
 
-  fleetwebsocket:
+  websocket:
     build: .
     restart: always
     environment:
       - MQTT_HOST=mosquitto
+      - NODE_ENV=development   
+       
+  adminer:
+    image: adminer:latest
+    restart: always
+    ports:
+      - 8082:8080
+    environment:
+      - ADMINER_DEFAULT_SERVER=database
+      - ADMINER_DESIGN=dracula
 
 volumes:
   teslamate-db:
