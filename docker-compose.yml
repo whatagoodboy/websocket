@@ -3,24 +3,32 @@ services:
     image: teslamate/teslamate:latest
     restart: always
     environment:
-      - ENCRYPTION_KEY=secretkey #replace with a secure key to encrypt your Tesla API tokens
-      - DATABASE_USER=teslamate
-      - DATABASE_PASS=password #insert your secure database password!
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-secretkey}
+      - DATABASE_USER=${DATABASE_USER:-teslamate}
+      - DATABASE_PASS=${DATABASE_PASS:-password}
       - DATABASE_NAME=teslamate
       - DATABASE_HOST=database
       - MQTT_HOST=mosquitto
+      - TESLA_WSS_HOST=ws://fleetwebsocket:8081
+      - TESLA_WSS_TLS_ACCEPT_INVALID_CERTS=true
+      - TESLA_WSS_USE_VIN=true
+      - TESLA_API_HOST=https://fleet-api.prd.cn.vn.cloud.tesla.cn
+      - TESLA_AUTH_HOST=https://auth.tesla.cn
+      - TESLA_AUTH_PATH=/oauth2/v3
+      - TESLA_AUTH_CLIENT_ID=${TESLA_AUTH_CLIENT_ID:-your_client_id}
     ports:
-      - 4000:4000
+      - ${TESLAMATE_PORT:-4000}:4000
     volumes:
       - ./import:/opt/app/import
     cap_drop:
       - all
+
   database:
-    image: postgres:15
+    image: postgres:17
     restart: always
     environment:
-      - POSTGRES_USER=teslamate
-      - POSTGRES_PASSWORD=password #insert your secure database password!
+      - POSTGRES_USER=${POSTGRES_USER:-teslamate}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-teslamate}
       - POSTGRES_DB=teslamate
     volumes:
       - teslamate-db:/var/lib/postgresql/data
@@ -29,12 +37,12 @@ services:
     image: teslamate/grafana:latest
     restart: always
     environment:
-      - DATABASE_USER=teslamate
-      - DATABASE_PASS=password #insert your secure database password!
+      - DATABASE_USER=${DATABASE_USER:-teslamate}
+      - DATABASE_PASS=${DATABASE_PASS:-password}
       - DATABASE_NAME=teslamate
       - DATABASE_HOST=database
     ports:
-      - 3000:3000
+      - ${GRAFANA_PORT:-3000}:3000
     volumes:
       - teslamate-grafana-data:/var/lib/grafana
 
@@ -47,6 +55,12 @@ services:
     volumes:
       - mosquitto-conf:/mosquitto/config
       - mosquitto-data:/mosquitto/data
+
+  fleetwebsocket:
+    build: .
+    restart: always
+    environment:
+      - MQTT_HOST=mosquitto
 
 volumes:
   teslamate-db:

@@ -1,11 +1,10 @@
 var express = require("express");
 const { WebSocket } = require("ws");
 const syncRequest = require("sync-request");
+const mqtt = require('mqtt');
 var app = express();
 require("express-ws")(app);
 app.use(express.json());
-
-//const request = require("sync-request");
 
 // Save ws associated with each tag
 let tags = {};
@@ -17,6 +16,51 @@ let lastValues = {};
 let tagsRaw = {};
 // Reference valid tokens
 let invalidTokens = {};
+
+// MQTT 客户端配置
+const mqttOptions = {
+  keepalive: 60,
+  reconnectPeriod: 5000,
+  connectTimeout: 30 * 1000
+};
+
+// 连接到 MQTT broker
+const client = mqtt.connect('mqtt://mosquitto:1883', mqttOptions);
+
+client.on('connect', () => {
+  console.log('Connected to MQTT broker');
+  client.subscribe('tesla/v/#', (err) => {
+    if (err) {
+      console.error('Error subscribing to MQTT topic:', err);
+    } else {
+      console.log('Subscribed to tesla/v/#');
+    }
+  });
+});
+
+client.on('error', (error) => {
+  console.error('MQTT connection error:', error);
+});
+
+client.on('close', () => {
+  console.log('MQTT connection closed');
+});
+
+client.on('reconnect', () => {
+  console.log('Trying to reconnect to MQTT broker...');
+});
+
+client.on('message', (topic, message) => {
+  try {
+    const data = message.toString();
+    let transformedMessage = transformMessage(data);
+    if (transformedMessage) {
+      broadcastMessage(transformedMessage);
+    }
+  } catch (error) {
+    console.error('Error processing MQTT message:', error);
+  }
+});
 
 app.get("/", (req, res) => {
   res.status(200).json({ status: "ok" });
@@ -55,16 +99,6 @@ app.get("/send", (req, res) => {
     if (tags[req.query.tag]) {
       tags[req.query.tag].close();
     }
-  }
-  res.status(200).json({ status: "ok" });
-});
-
-app.post("/", (req, res) => {
-  let buff = new Buffer.from(req.body.message.data, "base64");
-  let data = buff.toString("ascii");
-  let message = transformMessage(data);
-  if (message) {
-    broadcastMessage(message);
   }
   res.status(200).json({ status: "ok" });
 });
@@ -153,19 +187,6 @@ app.ws("/streaming/", (ws /*, req*/) => {
   });
 });
 
-/*setInterval(function () {
-  for (let key in tags) {
-    // check last event
-    if (lastTags[key]) {
-      if (tags[key]) {
-        if (lastTags[key] < new Date().getTime() - 3 * 61000) {
-          tags[key].close();
-        }
-      }
-    }
-  }
-}, 60000);*/
-
 /**
  * Transform a message from Tesla Telemetry to a websocket streaming message
  * @param {*} data
@@ -174,11 +195,24 @@ app.ws("/streaming/", (ws /*, req*/) => {
 function transformMessage(data) {
   try {
     const jsonData = JSON.parse(data);
-    //console.log("Reveived POST from pubsub:", JSON.stringify(jsonData,null, "  "));
-    if (jsonData.vin in tagsRaw) {
-      return {tag:jsonData.vin, raw: jsonData};
+    
+    // 检查数据格式是否符合预期
+    if (!jsonData || !jsonData.vin) {
+      console.error('Invalid message format:', data);
+      return null;
     }
+
+    if (jsonData.vin in tagsRaw) {
+      return {tag: jsonData.vin, raw: jsonData};
+    }
+
     let associativeArray = {};
+
+    // 确保 data 字段存在且是数组
+    if (!Array.isArray(jsonData.data)) {
+      console.error('Invalid data format, expected array:', jsonData);
+      return null;
+    }
 
     // Extract data from JSON event
     jsonData.data.forEach((item) => {
@@ -253,32 +287,15 @@ function transformMessage(data) {
 
     lastTags[jsonData.vin] = new Date().getTime();
 
-    /*if (associativeArray["Latitude"] && associativeArray["Longitude"]) {
-      const url =
-        "https://api.open-meteo.com/v1/elevation?latitude=" +
-        associativeArray["Latitude"] +
-        "&longitude=" +
-        associativeArray["Longitude"];
-      try {
-        const res = request("GET", url);
-        const data = JSON.parse(res.getBody("utf8"));
-        r.value = r.value.replace("ELEVATION", parseInt(data["elevation"][0]));
-      } catch (error) {
-        console.error("Error getting elevation", error);
-        r.value = r.value.replace("ELEVATION", "");
-      }
-    } else {
-      r.value = r.value.replace("ELEVATION", "");
-    }*/
-
     if (associativeArray["Latitude"] && associativeArray["Longitude"] && associativeArray["Gear"] && associativeArray["Gear"] != "") {
       return r;
     } else {
-      //console.error("no gps data");
-      //console.log(JSON.stringify(r));
+      console.debug('Missing required data fields for VIN:', jsonData.vin);
+      return null;
     }
   } catch (e) {
-    console.error(e);
+    console.error('Error transforming message:', e);
+    return null;
   }
 }
 
