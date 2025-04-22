@@ -16,12 +16,12 @@ services:
       - TESLA_AUTH_HOST=https://auth.tesla.cn
       - TESLA_AUTH_PATH=/oauth2/v3
       - TESLA_AUTH_CLIENT_ID=${TESLA_AUTH_CLIENT_ID:-your_client_id}
-      - POLLING_ASLEEP_INTERVAL=30  #default:30
-      - POLLING_CHARGING_INTERVAL=5  #default:5
-      - POLLING_DRIVING_INTERVAL=2.5 #default:2.5
-      - POLLING_ONLINE_INTERVAL=5 #default:60
-      - POLLING_DEFAULT_INTERVAL=5 #default:15
-      - POLLING_MINIMUM_INTERVAL=0 #default:0
+      # - POLLING_ASLEEP_INTERVAL=30  #default:30
+      # - POLLING_CHARGING_INTERVAL=5  #default:5
+      # - POLLING_DRIVING_INTERVAL=2.5 #default:2.5
+      # - POLLING_ONLINE_INTERVAL=5 #default:60
+      # - POLLING_DEFAULT_INTERVAL=5 #default:15
+      # - POLLING_MINIMUM_INTERVAL=0 #default:0
       - TZ=Asia/Shanghai
     ports:
       - ${TESLAMATE_PORT:-4000}:4000
